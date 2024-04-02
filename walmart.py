@@ -65,7 +65,7 @@ def main():
     st.write("Raw data:")
     st.write(data.tail())
 
-    year_to_forecast = st.number_input("Enter the year to forecast sales", min_value=data['Year'].iloc[-1] + 1)
+    year_to_forecast = st.slider("Enter the year to forecast sales", min_value=2024, max_value=2035)
     steps = year_to_forecast - data['Year'].iloc[-1]
 
     forecast_df, forecast_arima = arima_forecast(data, steps)
