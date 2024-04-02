@@ -91,9 +91,9 @@ def main():
     st.write(f"LSTM MAPE: {lstm_mape:.2%} ({100 - lstm_mape * 100:.2f}% accuracy)")
 
     fig, ax = plt.subplots(figsize=(16, 9))
-    ax.plot(data['Year'], data['Net_sales'], label='Actual')
-    ax.plot(forecast_df['Year'], forecast_df['Forecast'], label='ARIMA Forecast')
-    ax.plot(future_years, forecasts_lstm, label='LSTM Forecast')
+    ax.plot(data['Year'], data['Net_sales'],'-o', label='Actual')
+    ax.plot(forecast_df['Year'], forecast_df['Forecast'],'-o', label='ARIMA Forecast')
+    ax.plot(future_years, forecasts_lstm,'-o', label='LSTM Forecast')
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     plt.legend()
     st.pyplot(fig)
