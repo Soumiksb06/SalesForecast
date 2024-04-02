@@ -2,11 +2,13 @@ import streamlit as st
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 import numpy as np
-from keras.models import Sequential
+from keras.models import Sequential, load_model as keras_load_model
 from keras.layers import LSTM, Dense
+from keras.losses import MeanSquaredError  # Import MeanSquaredError class
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+import os
 
 def load_data():
     data = pd.read_csv("Walmart_new.csv")
@@ -20,7 +22,7 @@ def arima_forecast(data):
     forecast_df = pd.DataFrame({'Year': years[-len(forecast_arima):], 'Forecast': forecast_arima})
     return forecast_df, forecast_arima
 
-def lstm_forecast(data, future_years):
+def lstm_forecast(data, load_model=False):
     n_features = 1
     series = np.array(data['Net_sales']).reshape((len(data), n_features))
 
@@ -36,21 +38,25 @@ def lstm_forecast(data, future_years):
     X = np.array(X)
     y = np.array(y)
 
-    model = Sequential()
-    model.add(LSTM(50, activation='relu', input_shape=(n_steps, n_features)))
-    model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X, y, epochs=200, verbose=0)
+    if load_model and os.path.exists('lstm_model.h5'):
+        model = keras_load_model('lstm_model.h5')
+    else:
+        model = Sequential()
+        model.add(LSTM(50, activation='relu', input_shape=(n_steps, n_features)))
+        model.add(Dense(1))
+        model.compile(optimizer='adam', loss=MeanSquaredError())  # Create an instance of MeanSquaredError
+        model.fit(X, y, epochs=200, verbose=0)
+        model.save('lstm_model.h5')
 
     forecasts_lstm = []
     x_input = X[-1:]
-    for _ in range(len(future_years)):
+    for _ in range(5):  # Forecast for the next 5 years
         yhat = model.predict(x_input, verbose=0)
         forecasts_lstm.append(yhat[0][0])
         x_input = np.append(x_input[0][1:], yhat).reshape((1, n_steps, n_features))
 
-    forecasts_lstm_df = pd.DataFrame({'Year': future_years, 'Forecast': forecasts_lstm})
-    return forecasts_lstm_df, forecasts_lstm
+    return forecasts_lstm
+
 
 def main():
     st.title("Walmart Sales Forecasting")
@@ -62,16 +68,18 @@ def main():
     st.write("ARIMA forecast:")
     st.write(forecast_df)
 
-    future_years = list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + 11))
-    forecasts_lstm_df, forecasts_lstm = lstm_forecast(data, future_years)
+    future_years = list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + 6))  # Next 5 years
+    load_model = st.checkbox("Load pre-trained LSTM model")
+    forecasts_lstm = lstm_forecast(data, load_model)
+    forecasts_lstm_df = pd.DataFrame({'Year': future_years, 'Forecast': forecasts_lstm})
     st.write("LSTM forecast:")
     st.write(forecasts_lstm_df)
 
     arima_mse = mean_squared_error(data['Net_sales'].iloc[-len(forecast_arima):], forecast_arima)
-    lstm_mse = mean_squared_error(data['Net_sales'].iloc[-len(forecasts_lstm):], forecasts_lstm[:len(data) - len(forecasts_lstm_df)])
+    lstm_mse = mean_squared_error(data['Net_sales'].iloc[-len(forecasts_lstm):], forecasts_lstm)
 
     arima_mape = mean_absolute_percentage_error(data['Net_sales'].iloc[-len(forecast_arima):], forecast_arima)
-    lstm_mape = mean_absolute_percentage_error(data['Net_sales'].iloc[-len(forecasts_lstm):], forecasts_lstm[:len(data) - len(forecasts_lstm_df)])
+    lstm_mape = mean_absolute_percentage_error(data['Net_sales'].iloc[-len(forecasts_lstm):], forecasts_lstm)
 
     st.write(f"ARIMA MSE: {arima_mse:.2f}")
     st.write(f"LSTM MSE: {lstm_mse:.2f}")
@@ -81,7 +89,7 @@ def main():
     fig, ax = plt.subplots(figsize=(16, 9))
     ax.plot(data['Year'], data['Net_sales'], label='Actual')
     ax.plot(forecast_df['Year'], forecast_df['Forecast'], label='ARIMA Forecast')
-    ax.plot(forecasts_lstm_df['Year'], forecasts_lstm_df['Forecast'], label='LSTM Forecast')
+    ax.plot(future_years, forecasts_lstm, label='LSTM Forecast')
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     plt.legend()
     st.pyplot(fig)
