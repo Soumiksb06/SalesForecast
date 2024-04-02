@@ -63,7 +63,7 @@ def main():
     st.title("Walmart Sales Forecasting")
     data = load_data()
     st.write("Raw data:")
-    st.write(data.head())
+    st.write(data.tail())
 
     year_to_forecast = st.number_input("Enter the year to forecast sales", min_value=data['Year'].iloc[-1] + 1)
     steps = year_to_forecast - data['Year'].iloc[-1]
