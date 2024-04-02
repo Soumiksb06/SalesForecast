@@ -5,3 +5,4 @@ streamlit
 tensorflow
 keras
 scikit-learn
+statsmodels
