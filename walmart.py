@@ -6,6 +6,7 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dense
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from sklearn.metrics import mean_squared_error
 
 def load_data():
     data = pd.read_csv("Walmart_new.csv")
@@ -16,7 +17,8 @@ def arima_forecast(data):
     model = ARIMA(data['Net_sales'], order=(5, 1, 0))
     model_fit = model.fit()
     forecast_arima = model_fit.forecast(steps=5)
-    return years, forecast_arima
+    forecast_df = pd.DataFrame({'Year': years[-len(forecast_arima):], 'Forecast': forecast_arima})
+    return forecast_df, forecast_arima
 
 def lstm_forecast(data):
     n_features = 1
@@ -49,12 +51,13 @@ def lstm_forecast(data):
 
     return forecasts_lstm
 
-def plot_forecasts(data, years, forecast_arima, forecasts_lstm):
+def plot_forecasts(data, forecast_df, forecast_arima, forecasts_lstm):
+    years = list(data['Year']) + list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + 6))
     series = np.array(data['Net_sales'])
 
     fig, ax = plt.subplots(figsize=(16, 9))
     ax.plot(years[:len(series)], series, label='Actual')
-    ax.plot(years[-len(forecast_arima):], forecast_arima, label='ARIMA Forecast')
+    ax.plot(forecast_df['Year'], forecast_df['Forecast'], label='ARIMA Forecast')
     ax.plot(years[-len(forecasts_lstm):], forecasts_lstm, label='LSTM Forecast')
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     plt.legend()
@@ -66,15 +69,23 @@ def main():
     st.write("Raw data:")
     st.write(data.head())
 
-    years, forecast_arima = arima_forecast(data)
+    forecast_df, forecast_arima = arima_forecast(data)
     st.write("ARIMA forecast:")
-    st.write(list(zip(years[-len(forecast_arima):], forecast_arima)))
+    st.write(forecast_df)
 
     forecasts_lstm = lstm_forecast(data)
+    forecasts_lstm_df = pd.DataFrame({'Year': data['Year'].iloc[-len(forecasts_lstm):].reset_index(drop=True),
+                                      'Forecast': forecasts_lstm})
     st.write("LSTM forecast:")
-    st.write(list(zip(years[-len(forecasts_lstm):], forecasts_lstm)))
+    st.write(forecasts_lstm_df)
 
-    fig = plot_forecasts(data, years, forecast_arima, forecasts_lstm)
+    arima_mse = mean_squared_error(data['Net_sales'].iloc[-len(forecast_arima):], forecast_arima)
+    lstm_mse = mean_squared_error(data['Net_sales'].iloc[-len(forecasts_lstm):], forecasts_lstm)
+
+    st.write(f"ARIMA MSE: {arima_mse:.2f}")
+    st.write(f"LSTM MSE: {lstm_mse:.2f}")
+
+    fig = plot_forecasts(data, forecast_df, forecast_arima, forecasts_lstm)
     st.pyplot(fig)
 
 if __name__ == "__main__":
