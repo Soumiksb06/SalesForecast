@@ -14,15 +14,17 @@ def load_data():
     data = pd.read_csv("Walmart_new.csv")
     return data
 
-def arima_forecast(data):
-    years = list(data['Year']) + list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + 6))
+def arima_forecast(data, steps):
+    years = list(data['Year']) + list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + steps + 1))
     model = ARIMA(data['Net_sales'], order=(5, 1, 0))
     model_fit = model.fit()
-    forecast_arima = model_fit.forecast(steps=5)
+    start = len(data)
+    end = start + steps - 1
+    forecast_arima = model_fit.predict(start=start, end=end)
     forecast_df = pd.DataFrame({'Year': years[-len(forecast_arima):], 'Forecast': forecast_arima})
     return forecast_df, forecast_arima
 
-def lstm_forecast(data, load_model=False):
+def lstm_forecast(data, steps, load_model=False):
     n_features = 1
     series = np.array(data['Net_sales']).reshape((len(data), n_features))
 
@@ -50,13 +52,12 @@ def lstm_forecast(data, load_model=False):
 
     forecasts_lstm = []
     x_input = X[-1:]
-    for _ in range(5):  # Forecast for the next 5 years
+    for _ in range(steps):  # Forecast for the next 'steps' years
         yhat = model.predict(x_input, verbose=0)
         forecasts_lstm.append(yhat[0][0])
         x_input = np.append(x_input[0][1:], yhat).reshape((1, n_steps, n_features))
 
     return forecasts_lstm
-
 
 def main():
     st.title("Walmart Sales Forecasting")
@@ -64,13 +65,16 @@ def main():
     st.write("Raw data:")
     st.write(data.head())
 
-    forecast_df, forecast_arima = arima_forecast(data)
+    year_to_forecast = st.number_input("Enter the year to forecast sales", min_value=data['Year'].iloc[-1] + 1)
+    steps = year_to_forecast - data['Year'].iloc[-1]
+
+    forecast_df, forecast_arima = arima_forecast(data, steps)
     st.write("ARIMA forecast:")
     st.write(forecast_df)
 
-    future_years = list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + 6))  # Next 5 years
     load_model = st.checkbox("Load pre-trained LSTM model")
-    forecasts_lstm = lstm_forecast(data, load_model)
+    forecasts_lstm = lstm_forecast(data, steps, load_model)
+    future_years = list(range(data['Year'].iloc[-1] + 1, data['Year'].iloc[-1] + steps + 1))  # Next 'steps' years
     forecasts_lstm_df = pd.DataFrame({'Year': future_years, 'Forecast': forecasts_lstm})
     st.write("LSTM forecast:")
     st.write(forecasts_lstm_df)
